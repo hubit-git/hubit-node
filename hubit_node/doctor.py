@@ -7,7 +7,7 @@ import time
 import urllib.request
 
 from . import config, modules, pki, users
-from .modules import openvpn
+from .modules import openvpn, ssh
 from .system import run
 
 results = []
@@ -127,7 +127,10 @@ def check_runtime(cfg):
         (report("OK  ", f"the limits loop ran {age:.0f} s ago") if age < 60 else
          report("FAIL", f"the limits loop has not run for {age:.0f} s", "see `docker logs hubit-node`"))
     except OSError:
-        report("WARN", "the limits loop has not run yet", "it runs within seconds of the node starting")
+        up = ssh.snapshot().get(1, (0, 0, 0, ""))[2]  # how long the node (PID 1) has been running
+        (report("FAIL", f"the limits loop has not completed once in {up} s: usage, limits and online_at do not work",
+                "see `docker logs hubit-node 2>&1 | grep -i loop`") if up > 30 else
+         report("WARN", "the limits loop has not run yet", "it runs within seconds of the node starting"))
     memory = int(next(line for line in open("/proc/meminfo") if line.startswith("MemTotal")).split()[1]) // 1024
     report("OK  ", f"server size: {os.cpu_count()} CPU cores, {memory} MB RAM, {len(users.all_users())} users"
            " (about 3 MB of RAM per live SSH connection is a fair guess)")

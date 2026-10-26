@@ -262,6 +262,8 @@ def sync(cfg):
     """Every tick: tells the connect script each user's device limit, and forgets the session notes of connections
     that are gone (openvpn killed, or a disconnect that never ran). A note younger than 20 s may be a client that is
     not in the status yet."""
+    if not ready(cfg):
+        return
     folder = f"{RUN}/limits"
     wanted = {row["username"]: str(row["devices"]) for row in users.all_users()}
     for name in os.listdir(folder):

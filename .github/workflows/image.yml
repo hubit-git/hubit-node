@@ -1,9 +1,10 @@
 name: Build image
 
-# Run it by hand (Actions -> Build image -> Run workflow), or push a tag like v0.2.0.
+# Runs on every push to main, by hand (Actions -> Build image -> Run workflow), and on a tag like v0.2.0.
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     tags: ["v*"]
 
 jobs:

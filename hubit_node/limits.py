@@ -18,12 +18,15 @@ def tick(cfg):
     deltas = {}
     online = {}
     for module in modules.enabled(cfg):
-        if hasattr(module, "sync"):
-            module.sync(cfg)
-        for name, n in module.usage(cfg).items():
-            deltas[name] = deltas.get(name, 0) + n
-        for conn in module.online(cfg):
-            online.setdefault(conn["user"], []).append((module, conn))
+        try:
+            if hasattr(module, "sync"):
+                module.sync(cfg)
+            for name, n in module.usage(cfg).items():
+                deltas[name] = deltas.get(name, 0) + n
+            for conn in module.online(cfg):
+                online.setdefault(conn["user"], []).append((module, conn))
+        except Exception as e:  # what the other modules found is still used
+            print(f"[hubit-node] {module.NAME} failed in the loop: {e}", flush=True)
     users.add_usage(deltas)
     users.mark_online(list(online))
     for row in users.all_users():
