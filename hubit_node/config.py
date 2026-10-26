@@ -10,10 +10,13 @@ DEFAULTS = {
     "host": "",
     "api": {"port": 8443, "key": ""},
     "ssh": {"port": 2222},
+    "openvpn": {"udp": 1194, "tcp": 1194, "dns": ["1.1.1.1", "8.8.8.8"]},  # a port of 0 = that server is off
     # protocols switched on; a group is a set of protocols a subscription may use
-    "protocols": ["ssh"],
-    "groups": {"ssh": ["ssh"]},
+    "protocols": ["ssh", "openvpn"],
 }
+
+# these groups always exist; the admin may add more
+DEFAULT_GROUPS = {"ssh": ["ssh"], "openvpn": ["openvpn"], "ssh+openvpn": ["ssh", "openvpn"]}
 
 
 def load():
@@ -22,10 +25,11 @@ def load():
         with open(PATH) as f:
             saved = json.load(f)
         for key, value in saved.items():
-            if isinstance(value, dict) and isinstance(cfg.get(key), dict) and key != "groups":
+            if isinstance(value, dict) and isinstance(cfg.get(key), dict):
                 cfg[key].update(value)
             else:
                 cfg[key] = value
+    cfg["groups"] = {**DEFAULT_GROUPS, **cfg.get("groups", {})}
     return cfg
 
 

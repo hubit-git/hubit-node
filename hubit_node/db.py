@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
     data_limit    INTEGER NOT NULL DEFAULT 0,
     devices       INTEGER NOT NULL DEFAULT 1,
     used_bytes    INTEGER NOT NULL DEFAULT 0,
+    online_at     TEXT,
     created_at    TEXT NOT NULL
 )
 """
@@ -27,3 +28,6 @@ def connect():
 def init():
     with connect() as conn:
         conn.execute(SCHEMA)
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+        if "online_at" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN online_at TEXT")

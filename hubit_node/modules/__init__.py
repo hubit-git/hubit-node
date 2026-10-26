@@ -1,7 +1,8 @@
-"""Protocol modules. Each one has NAME, ports(cfg), render(cfg) and command(cfg); the core never knows a protocol by name."""
-from . import ssh
+"""Protocol modules. A module has NAME, ports(cfg), render(cfg), commands(cfg) {process name: argv}, usage(cfg),
+online(cfg), drop(conn) and stop(cfg); the core never knows a protocol by name."""
+from . import openvpn, ssh
 
-ALL = {m.NAME: m for m in (ssh,)}
+ALL = {m.NAME: m for m in (ssh, openvpn)}
 
 
 def enabled(cfg):

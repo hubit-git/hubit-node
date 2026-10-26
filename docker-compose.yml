@@ -8,5 +8,7 @@ services:
     cap_add:
       - NET_ADMIN
       - SYS_PTRACE  # lets `ss -p` see which process owns a connection (the online list)
+    devices:
+      - /dev/net/tun:/dev/net/tun
     volumes:
       - ./data:/data

@@ -13,6 +13,10 @@ if ! command -v docker >/dev/null; then
     curl -fsSL https://get.docker.com | sh
 fi
 
+# OpenVPN clients are routed through this server (a container on the host network cannot set this itself)
+echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/99-hubit-node.conf
+sysctl -q -w net.ipv4.ip_forward=1
+
 mkdir -p "$TARGET"
 if [ "$SRC" != "$TARGET" ]; then
     cp -r "$SRC/Dockerfile" "$SRC/docker-compose.yml" "$SRC/hubit_node" "$SRC/bin" "$TARGET/"
