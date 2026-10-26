@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Runs the hubit-node CLI inside the container.
+if ! docker ps --format '{{.Names}}' | grep -qx hubit-node; then
+    echo "hubit-node is not running (cd /opt/hubit-node && docker compose up -d)" >&2
+    exit 1
+fi
+[ -t 0 ] && flags=-it || flags=-i
+exec docker exec $flags hubit-node python3 -m hubit_node.cli "$@"

@@ -1,0 +1,12 @@
+services:
+  hubit-node:
+    build: .
+    image: hubit-node:local
+    container_name: hubit-node
+    network_mode: host
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_PTRACE  # lets `ss -p` see which process owns a connection (the online list)
+    volumes:
+      - ./data:/data
