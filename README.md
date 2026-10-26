@@ -16,6 +16,10 @@ git clone <this repository> && cd hubit-node
 
 This installs Docker if it is missing, puts the project in `/opt/hubit-node`, starts the container and adds the `hubit-node` command.
 
+The image is built by the GitHub Action "Build image" (Actions tab -> Run workflow, or push a tag such as `v0.2.0`) and published
+to `ghcr.io/hubit-git/hubit-node`; make the package public once (Packages -> hubit-node -> Package settings) so a server can pull
+it without logging in. Without a published image, `install.sh` builds it on the server.
+
 ## Use
 
 ```bash

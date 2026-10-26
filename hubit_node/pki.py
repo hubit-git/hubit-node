@@ -27,8 +27,26 @@ def static_key():
     return "\n".join(["-----BEGIN OpenVPN Static key V1-----", *lines, "-----END OpenVPN Static key V1-----"]) + "\n"
 
 
+def check(files):
+    """The certificate must be signed by the CA, the key must be its key, and tls-crypt must be an OpenVPN key."""
+    with tempfile.TemporaryDirectory() as tmp:
+        for name in ("ca.crt", "server.crt", "server.key"):
+            with open(f"{tmp}/{name}", "wb") as f:
+                f.write(files[name])
+        try:
+            run("openssl", "verify", "-CAfile", f"{tmp}/ca.crt", f"{tmp}/server.crt")
+            if run("openssl", "x509", "-in", f"{tmp}/server.crt", "-noout", "-pubkey") != \
+                    run("openssl", "pkey", "-in", f"{tmp}/server.key", "-pubout"):
+                raise ValueError("server.key is not the key of server.crt")
+        except RuntimeError as e:
+            raise ValueError(f"the certificate files do not fit each other: {e}")
+    if b"BEGIN OpenVPN Static key V1" not in files["tls-crypt.key"]:
+        raise ValueError("tls-crypt.key is not an OpenVPN static key")
+
+
 def install(files):
     """files: {name: bytes}. Replaces the bundle in one step."""
+    check(files)
     os.makedirs(DATA, exist_ok=True)
     tmp = tempfile.mkdtemp(dir=DATA)
     try:
@@ -81,6 +99,15 @@ def import_bundle(data):
 def read(name):
     with open(f"{DIR}/{name}") as f:
         return f.read().strip()
+
+
+def server_name():
+    """The name in the server certificate: the profile checks it (verify-x509-name), so it is read, not assumed."""
+    subject = run("openssl", "x509", "-in", f"{DIR}/server.crt", "-noout", "-subject", "-nameopt", "multiline")
+    for line in subject.splitlines():
+        if line.strip().startswith("commonName"):
+            return line.split("=", 1)[1].strip()
+    raise ValueError("the server certificate has no common name")
 
 
 def expires():

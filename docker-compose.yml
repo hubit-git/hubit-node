@@ -1,7 +1,8 @@
 services:
   hubit-node:
+    # the image is built by the GitHub Action of this repository; `docker compose up -d --build` builds it here instead
+    image: ${HUBIT_NODE_IMAGE:-ghcr.io/hubit-git/hubit-node:latest}
     build: .
-    image: hubit-node:local
     container_name: hubit-node
     network_mode: host
     restart: unless-stopped

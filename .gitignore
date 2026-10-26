@@ -1,2 +1,10 @@
 data/
 __pycache__/
+
+# keys and certificate bundles never go into this repository
+*.zip
+*.tgz
+*.key
+*.crt
+*.pem
+*.ovpn

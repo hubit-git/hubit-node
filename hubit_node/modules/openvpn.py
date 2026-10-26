@@ -1,10 +1,11 @@
 """OpenVPN for customers: a UDP and a TCP server (each can be off), the login is the customer's Linux username and
 password (PAM, only for the group p-openvpn), one shared client profile for everybody."""
 import os
+import shutil
 import socket
 import time
 
-from .. import pki
+from .. import pki, users
 from ..system import run
 
 NAME = "openvpn"
@@ -20,9 +21,27 @@ auth     required pam_unix.so
 account  required pam_unix.so
 """
 
-# openvpn runs this when a client leaves and tells us the final bytes of that session
+# Run by openvpn as `nobody`, so they cannot reach the management socket: they keep their own notes. A session is a file
+# sessions/USER/IP:PORT; the node writes limits/USER (the devices allowed) and removes notes of connections that are gone.
+# A device = a client IP, so a client that reconnects from the same address is never refused.
+CONNECT = """#!/bin/sh
+limit=$(cat "@RUN@/limits/$common_name" 2>/dev/null)
+case "$limit" in ''|*[!0-9]*) limit=0 ;; esac
+dir="@RUN@/sessions/$common_name"
+mkdir -p "$dir"
+if [ "$limit" -gt 0 ]; then
+    ips=$(ls "$dir" | sed 's/:[^:]*$//' | sort -u)
+    if ! echo "$ips" | grep -qxF "$untrusted_ip" && [ "$(echo "$ips" | grep -c .)" -ge "$limit" ]; then
+        exit 1
+    fi
+fi
+touch "$dir/$untrusted_ip:$untrusted_port"
+"""
+
+# when a client leaves: forget its session and tell the node the final bytes of that session
 DISCONNECT = """#!/bin/sh
-echo "$common_name $bytes_received $bytes_sent" > "%s/$untrusted_ip:$untrusted_port.$$.$(date +%%s)"
+rm -f "@RUN@/sessions/$common_name/$untrusted_ip:$untrusted_port"
+echo "$common_name $bytes_received $bytes_sent" > "@RUN@/$untrusted_ip:$untrusted_port.$$.$(date +%s)"
 """
 
 TEMPLATE = """port {port}
@@ -41,8 +60,10 @@ data-ciphers AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305
 auth SHA256
 verify-client-cert none
 username-as-common-name
+duplicate-cn
 plugin /usr/lib/openvpn/openvpn-plugin-auth-pam.so hubit-openvpn
 script-security 2
+client-connect {run}/connect.sh
 client-disconnect {run}/disconnect.sh
 push "redirect-gateway def1 bypass-dhcp"
 {dns}
@@ -110,9 +131,16 @@ def render(cfg):
     os.chmod(RUN, 0o733)  # openvpn (as nobody) writes the disconnect notes here, only root can list them
     with open(PAM, "w") as f:
         f.write(PAM_TEXT)
-    with open(f"{RUN}/disconnect.sh", "w") as f:
-        f.write(DISCONNECT % RUN)
-    os.chmod(f"{RUN}/disconnect.sh", 0o755)
+    for name, text in (("connect.sh", CONNECT), ("disconnect.sh", DISCONNECT)):
+        with open(f"{RUN}/{name}", "w") as f:
+            f.write(text.replace("@RUN@", RUN))
+        os.chmod(f"{RUN}/{name}", 0o755)
+    os.makedirs(f"{RUN}/limits", exist_ok=True)
+    os.chmod(f"{RUN}/limits", 0o755)
+    shutil.rmtree(f"{RUN}/sessions", ignore_errors=True)  # openvpn starts with nobody connected
+    os.makedirs(f"{RUN}/sessions")
+    shutil.chown(f"{RUN}/sessions", "nobody", "nogroup")
+    os.chmod(f"{RUN}/sessions", 0o700)
     dns = "\n".join(f'push "dhcp-option DNS {ip}"' for ip in cfg["openvpn"]["dns"])
     for proto, port in servers(cfg):
         dev, network = SERVERS[proto]
@@ -128,6 +156,20 @@ def commands(cfg):
     return {f"openvpn-{proto}": ["openvpn", "--config", f"/etc/openvpn/hubit-{proto}.conf"] for proto, _ in servers(cfg)}
 
 
+FORWARD_RULES = (
+    ("-i", "hubit-+", "-j", "ACCEPT"),
+    ("-o", "hubit-+", "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED", "-j", "ACCEPT"),
+)
+
+
+def firewall_tool():
+    """The iptables that Docker's own rules live in (a host may use the legacy or the nft one), or None."""
+    for tool in ("iptables-nft", "iptables-legacy"):
+        if run(tool, "-S", "DOCKER-USER", check=False).returncode == 0:
+            return tool
+    return None
+
+
 def open_network():
     """The clients' traffic is routed through this server: masquerade it, and let it pass Docker's FORWARD policy."""
     nets = ", ".join(f"{network}/24" for _, network in SERVERS.values())
@@ -139,17 +181,17 @@ def open_network():
         f'    ip saddr {{ {nets} }} oifname != "hubit-*" masquerade\n'
         f"  }}\n"
         f"}}\n"))
-    for rule in (("-i", "hubit-+", "-j", "ACCEPT"), ("-o", "hubit-+", "-m", "conntrack", "--ctstate",
-                                                      "RELATED,ESTABLISHED", "-j", "ACCEPT")):
-        if run("iptables", "-C", "DOCKER-USER", *rule, check=False).returncode != 0:
-            run("iptables", "-I", "DOCKER-USER", *rule, check=False)  # no DOCKER-USER chain = nothing to open
+    tool = firewall_tool()  # no DOCKER-USER chain = Docker does not close FORWARD, nothing to open
+    for rule in FORWARD_RULES if tool else ():
+        if run(tool, "-C", "DOCKER-USER", *rule, check=False).returncode != 0:
+            run(tool, "-I", "DOCKER-USER", *rule)
 
 
 def stop(cfg):
     run("nft", "delete", "table", "ip", NAT_TABLE, check=False)
-    for rule in (("-i", "hubit-+", "-j", "ACCEPT"), ("-o", "hubit-+", "-m", "conntrack", "--ctstate",
-                                                      "RELATED,ESTABLISHED", "-j", "ACCEPT")):
-        run("iptables", "-D", "DOCKER-USER", *rule, check=False)
+    tool = firewall_tool()
+    for rule in FORWARD_RULES if tool else ():
+        run(tool, "-D", "DOCKER-USER", *rule, check=False)
 
 
 def ask(proto, command):
@@ -205,7 +247,7 @@ def finished():
         return notes
     for name in os.listdir(RUN):
         path = f"{RUN}/{name}"
-        if name.endswith(".sock") or name == "disconnect.sh" or "." not in name:
+        if name.endswith((".sock", ".sh")) or "." not in name or not os.path.isfile(path):
             continue
         try:
             user, received, sent = open(path).read().split()
@@ -214,6 +256,30 @@ def finished():
         except (OSError, ValueError):
             pass
     return notes
+
+
+def sync(cfg):
+    """Every tick: tells the connect script each user's device limit, and forgets the session notes of connections
+    that are gone (openvpn killed, or a disconnect that never ran). A note younger than 20 s may be a client that is
+    not in the status yet."""
+    folder = f"{RUN}/limits"
+    wanted = {row["username"]: str(row["devices"]) for row in users.all_users()}
+    for name in os.listdir(folder):
+        if name not in wanted:
+            os.remove(f"{folder}/{name}")
+    for name, value in wanted.items():
+        path = f"{folder}/{name}"
+        if not os.path.exists(path) or open(path).read() != value:
+            with open(path + ".tmp", "w") as f:
+                f.write(value)
+            os.replace(path + ".tmp", path)
+    alive = {c["addr"] for c in clients(cfg)}
+    root = f"{RUN}/sessions"
+    for user in os.listdir(root):
+        for note in os.listdir(f"{root}/{user}"):
+            path = f"{root}/{user}/{note}"
+            if note not in alive and time.time() - os.path.getmtime(path) > 20:
+                os.remove(path)
 
 
 def usage(cfg):
@@ -254,5 +320,5 @@ def profile(cfg):
     remotes = "\n".join(f"remote {cfg['host']} {port} {proto}" for proto, port in servers(cfg))
     if not remotes:
         raise ValueError("OpenVPN is off on both UDP and TCP")
-    return PROFILE.format(remotes=remotes, name=pki.SERVER_NAME, ca=pki.read("ca.crt"),
+    return PROFILE.format(remotes=remotes, name=pki.server_name(), ca=pki.read("ca.crt"),
                           tls_crypt=pki.read("tls-crypt.key"))

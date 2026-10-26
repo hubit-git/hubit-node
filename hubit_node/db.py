@@ -27,6 +27,7 @@ def connect():
 
 def init():
     with connect() as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
         conn.execute(SCHEMA)
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
         if "online_at" not in columns:

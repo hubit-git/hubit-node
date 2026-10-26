@@ -30,11 +30,17 @@ PermitTunnel no
 GatewayPorts no
 MaxAuthTries 3
 LoginGraceTime 20
+MaxStartups 100:30:400
 ClientAliveInterval 30
 ClientAliveCountMax 3
 LogLevel INFO
 """
 
+
+PAM_FILE = "/etc/pam.d/sshd"
+CHECK = "/usr/local/bin/hubit-devcheck"
+# after the password was right (Debian's common-auth jumps over pam_deny only on success)
+PAM_LINE = f"auth requisite pam_exec.so quiet {CHECK}"
 
 TABLE = "hubit"
 # {uid: username} the nftables rules were made for
@@ -60,27 +66,66 @@ def render(cfg):
     with open(CONF, "w") as f:
         f.write(TEMPLATE.format(port=cfg["ssh"]["port"], keys=KEYS))
     run("/usr/sbin/sshd", "-t", "-f", CONF)
+    with open(CHECK, "w") as f:
+        f.write("#!/bin/sh\nPYTHONPATH=/app exec python3 -m hubit_node.devcheck ssh\n")
+    os.chmod(CHECK, 0o755)
+    with open(PAM_FILE) as f:
+        pam = f.read()
+    if PAM_LINE not in pam:
+        if "@include common-auth\n" not in pam:
+            raise RuntimeError(f"{PAM_FILE} has no '@include common-auth' line to put the device check after")
+        with open(PAM_FILE, "w") as f:
+            f.write(pam.replace("@include common-auth\n", f"@include common-auth\n{PAM_LINE}\n", 1))
+
+
+def snapshot():
+    """One pass over /proc: {pid: (parent pid, uid, seconds running, command name)}."""
+    ticks = os.sysconf("SC_CLK_TCK")
+    uptime = float(open("/proc/uptime").read().split()[0])
+    found = {}
+    for name in os.listdir("/proc"):
+        if not name.isdigit():
+            continue
+        try:
+            with open(f"/proc/{name}/stat") as f:
+                stat = f.read()
+            end = stat.rindex(")")
+            fields = stat[end + 2:].split()
+            found[int(name)] = (int(fields[1]), os.stat(f"/proc/{name}").st_uid, int(uptime - int(fields[19]) / ticks),
+                                stat[stat.index("(") + 1:end])
+        except (OSError, ValueError):
+            continue  # the process ended while we looked
+    return found
 
 
 def online(cfg):
-    """Live connections: [{user, ip, seconds}]. The connection's socket is held by 'sshd: USER [priv]'."""
+    """Live connections: [{user, ip, seconds, pid}]. The connection's socket is held by 'sshd: USER [priv]', which has
+    a child running as the customer once the login is done (so a login in progress is not counted)."""
     out = run("ss", "-tnpH", "state", "established", f"( sport = :{cfg['ssh']['port']} )")
+    if not out:
+        return []
+    procs = snapshot()
+    child_uids = {}
+    for ppid, uid, _, _ in procs.values():
+        child_uids.setdefault(ppid, set()).add(uid)
     found = []
     for line in out.splitlines():
         parts = line.split()
         if len(parts) < 4:
             continue
-        ip = parts[3].rsplit(":", 1)[0].strip("[]")
-        for pid in re.findall(r"pid=(\d+)", line):
+        ip = parts[3].rsplit(":", 1)[0].strip("[]").removeprefix("::ffff:")
+        for pid in map(int, re.findall(r"pid=(\d+)", line)):
+            info = procs.get(pid)
+            if not info or info[3] != "sshd":
+                continue
             try:
                 with open(f"/proc/{pid}/cmdline") as f:
                     match = re.match(r"sshd: ([a-z][a-z0-9_-]*)", f.read().replace("\0", " "))
-            except OSError:
+                if match and pwd.getpwnam(match.group(1)).pw_uid in child_uids.get(pid, ()):
+                    found.append({"user": match.group(1), "ip": ip, "seconds": info[2], "pid": str(pid)})
+                    break
+            except (OSError, KeyError):
                 continue
-            if match:
-                seconds = int(run("ps", "-o", "etimes=", "-p", pid, check=False).stdout.strip() or 0)
-                found.append({"user": match.group(1), "ip": ip, "seconds": seconds, "pid": pid})
-                break
     return found
 
 
@@ -93,17 +138,26 @@ def drop(conn):
 def rules(uids):
     """The counting rules. A customer's sshd child runs as the customer, so everything the tunnel opens on the
     server leaves with the customer's uid: mark that connection (conntrack mark = uid) when it goes out and count
-    its packets in both directions into one counter per user. Loopback is not counted."""
+    its packets in both directions into one counter per user. Both the mark and the counter are found by a map
+    lookup, so a packet costs the same with 10 customers as with 10000 (a rule per customer slowed all traffic of the
+    host by 90 % at 2000). Loopback is not counted."""
     lines = [f"add table inet {TABLE}", f"delete table inet {TABLE}", f"table inet {TABLE} {{"]
     lines += [f"  counter u{uid} {{ }}" for uid in uids]
-    for chain, hook, rule in (
-        ("out", "output", lambda u: f'meta skuid {u} ct mark set {u}\n    oifname != "lo" ct mark {u} counter name "u{u}"'),
-        ("in", "input", lambda u: f'iifname != "lo" ct mark {u} counter name "u{u}"'),
-    ):
-        lines.append(f"  chain {chain} {{ type filter hook {hook} priority -150; policy accept;")
-        lines += [f"    {rule(uid)}" for uid in uids]
-        lines.append("  }")
-    lines.append("}")
+    if uids:
+        lines.append("  map mark_of { type uid : mark; elements = {\n" + ",\n".join(f"    {u} : {u}" for u in uids) + "\n  } }")
+        lines.append('  map ctr { type mark : counter; elements = {\n' + ",\n".join(f'    {u} : "u{u}"' for u in uids) + "\n  } }")
+    else:
+        lines += ["  map mark_of { type uid : mark; }", "  map ctr { type mark : counter; }"]
+    lines += [
+        "  chain out { type filter hook output priority -150; policy accept;",
+        "    ct mark set meta skuid map @mark_of",
+        '    oifname != "lo" counter name ct mark map @ctr',
+        "  }",
+        "  chain in { type filter hook input priority -150; policy accept;",
+        '    iifname != "lo" counter name ct mark map @ctr',
+        "  }",
+        "}",
+    ]
     return "\n".join(lines) + "\n"
 
 

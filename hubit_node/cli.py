@@ -172,6 +172,11 @@ def cmd_api(args, cfg):
         print("the key changed: give the new one to Hubit")
 
 
+def cmd_doctor(args, cfg):
+    from . import doctor
+    sys.exit(doctor.main())
+
+
 def cmd_host(args, cfg):
     cfg["host"] = args.value
     config.save(cfg)
@@ -276,6 +281,7 @@ def build_parser():
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("status", help="versions, ports, users").set_defaults(fn=cmd_status)
+    sub.add_parser("doctor", help="check the server (ports, firewall, forwarding, API)").set_defaults(fn=cmd_doctor)
     sub.add_parser("online", help="who is connected now").set_defaults(fn=cmd_online)
     p = sub.add_parser("host", help="domain or IP shown to customers")
     p.add_argument("value")

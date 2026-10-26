@@ -67,6 +67,8 @@ def watch():
 def tick():
     try:
         limits.tick(config.load())
+        with open("/run/hubit-tick", "w") as f:
+            f.write(str(time.time()))
     except Exception as e:  # the loop must never stop the node
         log(f"limits loop failed: {e}")
 

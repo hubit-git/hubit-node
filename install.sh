@@ -25,7 +25,12 @@ chmod +x "$TARGET/bin/hubit-node"
 ln -sf "$TARGET/bin/hubit-node" /usr/local/bin/hubit-node
 
 cd "$TARGET"
-docker compose up -d --build
+# the published image when there is one, else build it here
+if docker compose pull -q 2>/dev/null; then
+    docker compose up -d
+else
+    docker compose up -d --build
+fi
 
 echo
 echo "hubit-node is running. Try: hubit-node status"

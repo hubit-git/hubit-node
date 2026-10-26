@@ -18,6 +18,8 @@ def tick(cfg):
     deltas = {}
     online = {}
     for module in modules.enabled(cfg):
+        if hasattr(module, "sync"):
+            module.sync(cfg)
         for name, n in module.usage(cfg).items():
             deltas[name] = deltas.get(name, 0) + n
         for conn in module.online(cfg):
