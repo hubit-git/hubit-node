@@ -6,6 +6,7 @@ import socket
 import time
 
 from .. import pki, users
+from ..config import host_of
 from ..system import run
 
 NAME = "openvpn"
@@ -116,7 +117,7 @@ def ports(cfg):
 
 
 def connection(cfg):
-    return {"protocol": "openvpn", "host": cfg["host"], **{proto: port for proto, port in servers(cfg)},
+    return {"protocol": "openvpn", "host": host_of(cfg, "openvpn"), **{proto: port for proto, port in servers(cfg)},
             "profile": "/profile/openvpn"}
 
 
@@ -315,11 +316,13 @@ def drop(conn):
 
 def profile(cfg):
     """The client file, the same for every customer (the username and password are typed in the app)."""
-    if not cfg["host"]:
+    host = host_of(cfg, "openvpn")
+
+    if not host:
         raise ValueError("set the host first: hubit-node host <domain-or-ip>")
     if not ready(cfg):
         raise ValueError("no certificate yet: hubit-node pki create (or import)")
-    remotes = "\n".join(f"remote {cfg['host']} {port} {proto}" for proto, port in servers(cfg))
+    remotes = "\n".join(f"remote {host} {port} {proto}" for proto, port in servers(cfg))
     if not remotes:
         raise ValueError("OpenVPN is off on both UDP and TCP")
     return PROFILE.format(remotes=remotes, name=pki.server_name(), ca=pki.read("ca.crt"),

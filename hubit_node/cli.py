@@ -64,6 +64,11 @@ def need_user(name):
 def cmd_status(args, cfg):
     print(f"hubit-node {config.VERSION}")
     print(f"host:      {cfg['host'] or '(not set)'}")
+
+    for protocol in ("ssh", "openvpn"):
+        if cfg[protocol].get("host"):
+            print(f"  {protocol} host: {cfg[protocol]['host']}")
+
     print("protocols:")
     for module in modules.enabled(cfg):
         for label, proto, port in module.ports(cfg):
@@ -178,9 +183,20 @@ def cmd_doctor(args, cfg):
 
 
 def cmd_host(args, cfg):
-    cfg["host"] = public_ip() if args.value == "auto" else args.value
+    if args.value is not None:
+        cfg["host"] = public_ip() if args.value == "auto" else args.value
+
+    for protocol in ("ssh", "openvpn"):
+        given = getattr(args, protocol)
+
+        if given is not None:
+            cfg[protocol]["host"] = "" if given == "default" else given
+
     config.save(cfg)
-    print(f"host = {args.value}")
+    print(f"host:    {cfg['host'] or '(not set)'}")
+
+    for protocol in ("ssh", "openvpn"):
+        print(f"{protocol + ':':<8} {config.host_of(cfg, protocol) or '(not set)'}" + ("" if cfg[protocol].get("host") else "  (the host above)"))
 
 
 def cmd_ssh_port(args, cfg):
@@ -283,8 +299,10 @@ def build_parser():
     sub.add_parser("status", help="versions, ports, users").set_defaults(fn=cmd_status)
     sub.add_parser("doctor", help="check the server (ports, firewall, forwarding, API)").set_defaults(fn=cmd_doctor)
     sub.add_parser("online", help="who is connected now").set_defaults(fn=cmd_online)
-    p = sub.add_parser("host", help="domain or IP shown to customers (auto = this server's address)")
-    p.add_argument("value")
+    p = sub.add_parser("host", help="domain or IP shown to customers (auto = this server's address); --ssh and --openvpn give one protocol its own")
+    p.add_argument("value", nargs="?")
+    p.add_argument("--ssh", help="a domain or IP for SSH only, or default")
+    p.add_argument("--openvpn", help="a domain or IP for OpenVPN only, or default")
     p.set_defaults(fn=cmd_host)
     p = sub.add_parser("openvpn", help="show or change the OpenVPN ports")
     p.add_argument("--udp", help="port or off")

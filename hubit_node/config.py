@@ -19,6 +19,11 @@ DEFAULTS = {
 DEFAULT_GROUPS = {"ssh": ["ssh"], "openvpn": ["openvpn"], "ssh+openvpn": ["ssh", "openvpn"]}
 
 
+def host_of(cfg, protocol):
+    """The address customers use for a protocol: its own host when one is set, else the host of the node."""
+    return cfg[protocol].get("host") or cfg["host"]
+
+
 def load():
     cfg = json.loads(json.dumps(DEFAULTS))
     if os.path.exists(PATH):

@@ -5,7 +5,7 @@ import pwd
 import re
 
 from .. import users
-from ..config import DATA
+from ..config import DATA, host_of
 from ..system import run
 
 NAME = "ssh"
@@ -53,7 +53,7 @@ def ports(cfg):
 
 def connection(cfg):
     """What a customer needs to connect (the password is the one Hubit knows)."""
-    return {"protocol": "ssh", "host": cfg["host"], "port": cfg["ssh"]["port"]}
+    return {"protocol": "ssh", "host": host_of(cfg, "ssh"), "port": cfg["ssh"]["port"]}
 
 
 def render(cfg):

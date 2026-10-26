@@ -26,6 +26,8 @@ it without logging in. Without a published image, `install.sh` builds it on the 
 ```bash
 hubit-node status
 hubit-node online                       # who is connected now
+hubit-node host vpn.example.com              # the address customers get (auto = this server's)
+hubit-node host --ssh ssh.example.net        # SSH on its own address; OpenVPN keeps the host (--openvpn likewise, default = back)
 hubit-node ssh-port 2222
 hubit-node user add s1 --password secret
 hubit-node user add s2 --group openvpn --days 30 --data 50 --devices 2   # groups: ssh, openvpn, ssh+openvpn

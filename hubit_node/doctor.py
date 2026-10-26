@@ -103,20 +103,26 @@ def check_config(cfg):
             left = int(run("openssl", "x509", "-in", f"{pki.DIR}/server.crt", "-noout", "-checkend", str(90 * 86400), check=False).returncode)
             (report("WARN", "the server certificate ends within 90 days", pki.expires()) if left else
              report("OK  ", f"the server certificate is valid until {pki.expires()}"))
-    if not cfg["host"]:
+
+    hosts = {config.host_of(cfg, name) for name in cfg["protocols"] if name in cfg}
+
+    if "" in hosts:
         report("WARN", "host is not set (customers' files and the API show an empty address)", "hubit-node host <domain-or-ip>")
-        return
-    try:
-        resolved = socket.gethostbyname(cfg["host"])
-    except OSError:
-        report("FAIL", f"{cfg['host']} does not resolve", "fix the DNS record (a DNS-only record, no CDN proxy)")
-        return
-    mine = route_ip() or "?"
-    if resolved == mine:
-        report("OK  ", f"{cfg['host']} points to this server ({mine})")
-    else:
-        report("WARN", f"{cfg['host']} resolves to {resolved}, this server's address is {mine}",
-               "fine behind NAT or while the DNS is not moved yet; otherwise customers cannot reach the node")
+
+    for host in sorted(hosts - {""}):
+        try:
+            resolved = socket.gethostbyname(host)
+        except OSError:
+            report("FAIL", f"{host} does not resolve", "fix the DNS record (a DNS-only record, no CDN proxy)")
+            continue
+
+        mine = route_ip() or "?"
+
+        if resolved == mine:
+            report("OK  ", f"{host} points to this server ({mine})")
+        else:
+            report("WARN", f"{host} resolves to {resolved}, this server's address is {mine}",
+                   "fine behind NAT or while the DNS is not moved yet; otherwise customers cannot reach the node")
 
 
 def check_runtime(cfg):
