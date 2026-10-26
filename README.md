@@ -14,7 +14,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/hubit-git/hubit-node/main/in
 ```
 
 This installs Docker if it is missing, puts the project in `/opt/hubit-node`, starts the container, adds the `hubit-node` command
-and prints the API port, key and certificate fingerprint that Hubit needs. Run the same command again to update (the data in
+and prints the API port, key and certificate pin that Hubit needs. Run the same command again to update (the data in
 `/opt/hubit-node/data` stays).
 
 The image is built by the GitHub Action "Build image" (Actions tab -> Run workflow, or push a tag such as `v0.2.0`) and published
@@ -34,7 +34,7 @@ hubit-node openvpn --udp 1194 --tcp 443      # a port or off
 hubit-node pki create | import | export | show
 hubit-node ovpn > client.ovpn                # the one profile every customer uses
 hubit-node protocol list | enable | disable <name>
-hubit-node api                               # port, key and certificate fingerprint of the API
+hubit-node api                               # port, key and certificate pin of the API
 ```
 
 All settings are in one file, `/opt/hubit-node/data/config.json`; the users are in `data/hubit.db`. Both survive updates and a
@@ -42,9 +42,9 @@ re-created container; the Linux users are rebuilt from the database at every sta
 
 ## API
 
-HTTPS, a self-signed certificate (Hubit pins its fingerprint), the key in the header `X-API-Key`. `GET /info`, `/groups`, `/online`,
+HTTPS, a self-signed certificate (Hubit pins its public key: `hubit-node api` prints the pin), the key in the header `X-API-Key`. `GET /info`, `/groups`, `/online`,
 `/users`, `POST /users`, `GET|PATCH|DELETE /users/{u}`, `POST /users/{u}/disable|enable|reset-usage|kick`,
-`GET /users/{u}/connection`, `GET /profile/openvpn`, `GET|PUT /pki`. Times are UTC `YYYY-MM-DD HH:MM:SS`, data in bytes.
+`GET /users/{u}/connection`, `GET /profile/openvpn`, `GET|PUT /pki` (PUT takes JSON: the four files as text). Times are UTC `YYYY-MM-DD HH:MM:SS`, data in bytes.
 
 ## Layout
 

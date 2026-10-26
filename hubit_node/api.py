@@ -1,12 +1,15 @@
 """The HTTPS JSON API Hubit talks to (it mirrors the panel driver). One API key in the header X-API-Key; the certificate
-is self-signed and Hubit pins its fingerprint (`hubit-node api show`). It runs as its own process under the supervisor.
+is self-signed and Hubit pins its public key (`hubit-node api` prints the pin). It runs as its own process under the supervisor.
 It only reads usage; counting and limits belong to the loop in the supervisor."""
+import base64
+import hashlib
 import hmac
 import json
 import os
 import re
 import signal
 import ssl
+import subprocess
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -33,8 +36,13 @@ def ensure_cert():
     os.chmod(f"{TLS_DIR}/tls.key", 0o600)
 
 
-def fingerprint():
-    return run("openssl", "x509", "-in", f"{TLS_DIR}/tls.crt", "-noout", "-fingerprint", "-sha256").split("=", 1)[1]
+def pin():
+    """What Hubit stores to know this node (curl's "pinned public key"): sha256 of the certificate's public key. It is
+    checked before anything, the API key included, is sent, and survives a new certificate made from the same key."""
+    key = run("openssl", "x509", "-in", f"{TLS_DIR}/tls.crt", "-pubkey", "-noout")
+    der = subprocess.run(["openssl", "pkey", "-pubin", "-outform", "der"], input=key.encode(), capture_output=True,
+                         check=True).stdout
+    return "sha256//" + base64.b64encode(hashlib.sha256(der).digest()).decode()
 
 
 def connections(cfg):
@@ -168,25 +176,28 @@ def pki_show(cfg, m, body, query):
 
 
 def pki_put(cfg, m, body, query):
-    pki.import_bundle(body)
+    missing = [name for name in pki.FILES if not isinstance(body.get(name), str)]
+    if missing:
+        raise ValueError("missing: " + ", ".join(missing))
+    pki.install({name: body[name].encode() for name in pki.FILES})
     os.kill(1, signal.SIGHUP)  # the supervisor starts OpenVPN now
     return 200, {"present": True, "expires": pki.expires()}
 
 
 ROUTES = [
-    ("GET", r"/info", info, False),
-    ("GET", r"/groups", groups, False),
-    ("GET", r"/users", user_list, False),
-    ("POST", r"/users", user_create, False),
-    ("GET", r"/users/(?P<user>[a-z][a-z0-9_-]*)", user_show, False),
-    ("PATCH", r"/users/(?P<user>[a-z][a-z0-9_-]*)", user_update, False),
-    ("DELETE", r"/users/(?P<user>[a-z][a-z0-9_-]*)", user_delete, False),
-    ("POST", r"/users/(?P<user>[a-z][a-z0-9_-]*)/(?P<action>disable|enable|reset-usage|kick)", user_action, False),
-    ("GET", r"/users/(?P<user>[a-z][a-z0-9_-]*)/connection", user_connection, False),
-    ("GET", r"/online", online, False),
-    ("GET", r"/profile/(?P<protocol>[a-z]+)", profile, False),
-    ("GET", r"/pki", pki_show, False),
-    ("PUT", r"/pki", pki_put, True),  # the body is the bundle itself (a .tar.gz), not JSON
+    ("GET", r"/info", info),
+    ("GET", r"/groups", groups),
+    ("GET", r"/users", user_list),
+    ("POST", r"/users", user_create),
+    ("GET", r"/users/(?P<user>[a-z][a-z0-9_-]*)", user_show),
+    ("PATCH", r"/users/(?P<user>[a-z][a-z0-9_-]*)", user_update),
+    ("DELETE", r"/users/(?P<user>[a-z][a-z0-9_-]*)", user_delete),
+    ("POST", r"/users/(?P<user>[a-z][a-z0-9_-]*)/(?P<action>disable|enable|reset-usage|kick)", user_action),
+    ("GET", r"/users/(?P<user>[a-z][a-z0-9_-]*)/connection", user_connection),
+    ("GET", r"/online", online),
+    ("GET", r"/profile/(?P<protocol>[a-z]+)", profile),
+    ("GET", r"/pki", pki_show),
+    ("PUT", r"/pki", pki_put),
 ]
 
 
@@ -216,7 +227,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ApiError(401, "unauthorized")
             url = urlparse(self.path)
             allowed = False
-            for method, pattern, fn, raw in ROUTES:
+            for method, pattern, fn in ROUTES:
                 match = re.fullmatch(pattern, url.path)
                 if not match:
                     continue
@@ -227,8 +238,8 @@ class Handler(BaseHTTPRequestHandler):
                 if size > MAX_BODY:
                     raise ApiError(413, "too_large")
                 data = self.rfile.read(size) if size else b""
-                body = data if raw else (json.loads(data) if data else {})
-                if not raw and not isinstance(body, dict):
+                body = json.loads(data) if data else {}
+                if not isinstance(body, dict):
                     raise ValueError("the body must be a JSON object")
                 status, payload = fn(cfg, match.groupdict(), body, parse_qs(url.query))
                 return self.reply(status, payload)
