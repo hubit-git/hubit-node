@@ -7,6 +7,7 @@ import sys
 import time
 
 from . import api, config, db, limits, modules, users
+from .system import public_ip
 
 # {process name: (Popen, argv)}
 procs = {}
@@ -28,6 +29,9 @@ def start_all():
     cfg = config.load()
     if not cfg["api"]["key"]:
         cfg["api"]["key"] = secrets.token_urlsafe(32)
+    if not cfg["host"]:
+        cfg["host"] = public_ip()
+        log(f"host was empty, set to {cfg['host'] or '(not found)'}; change it with: hubit-node host <domain-or-ip>")
     config.save(cfg)
     api.ensure_cert()
     users.sync_all(cfg)

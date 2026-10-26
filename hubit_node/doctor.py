@@ -8,7 +8,7 @@ import urllib.request
 
 from . import config, modules, pki, users
 from .modules import openvpn, ssh
-from .system import run
+from .system import route_ip, run
 
 results = []
 
@@ -111,8 +111,7 @@ def check_config(cfg):
     except OSError:
         report("FAIL", f"{cfg['host']} does not resolve", "fix the DNS record (a DNS-only record, no CDN proxy)")
         return
-    mine = run("ip", "-4", "route", "get", "1.1.1.1", check=False).stdout.split(" src ")
-    mine = mine[1].split()[0] if len(mine) > 1 else "?"
+    mine = route_ip() or "?"
     if resolved == mine:
         report("OK  ", f"{cfg['host']} points to this server ({mine})")
     else:

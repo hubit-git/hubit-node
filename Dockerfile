@@ -1,7 +1,7 @@
 FROM debian:12-slim
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 openssh-server openssl procps passwd iproute2 nftables iptables openvpn \
+    && apt-get install -y --no-install-recommends python3 ca-certificates openssh-server openssl procps passwd iproute2 nftables iptables openvpn \
     && rm -rf /var/lib/apt/lists/*
 
 # Customers' Linux users live far above the host's own users: the container shares the host's network, and the

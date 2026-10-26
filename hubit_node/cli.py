@@ -6,7 +6,7 @@ import signal
 import sys
 
 from . import api, config, db, modules, pki, users
-from .system import run
+from .system import public_ip, run
 
 
 def reload_node():
@@ -178,7 +178,7 @@ def cmd_doctor(args, cfg):
 
 
 def cmd_host(args, cfg):
-    cfg["host"] = args.value
+    cfg["host"] = public_ip() if args.value == "auto" else args.value
     config.save(cfg)
     print(f"host = {args.value}")
 
@@ -283,7 +283,7 @@ def build_parser():
     sub.add_parser("status", help="versions, ports, users").set_defaults(fn=cmd_status)
     sub.add_parser("doctor", help="check the server (ports, firewall, forwarding, API)").set_defaults(fn=cmd_doctor)
     sub.add_parser("online", help="who is connected now").set_defaults(fn=cmd_online)
-    p = sub.add_parser("host", help="domain or IP shown to customers")
+    p = sub.add_parser("host", help="domain or IP shown to customers (auto = this server's address)")
     p.add_argument("value")
     p.set_defaults(fn=cmd_host)
     p = sub.add_parser("openvpn", help="show or change the OpenVPN ports")
