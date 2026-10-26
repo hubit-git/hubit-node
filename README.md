@@ -10,11 +10,12 @@ driver, the menu, then OpenConnect and more.
 ## Install (Ubuntu or Debian, as root)
 
 ```bash
-git clone <this repository> && cd hubit-node
-./install.sh
+bash <(curl -fsSL https://raw.githubusercontent.com/hubit-git/hubit-node/main/install.sh)
 ```
 
-This installs Docker if it is missing, puts the project in `/opt/hubit-node`, starts the container and adds the `hubit-node` command.
+This installs Docker if it is missing, puts the project in `/opt/hubit-node`, starts the container, adds the `hubit-node` command
+and prints the API port, key and certificate fingerprint that Hubit needs. Run the same command again to update (the data in
+`/opt/hubit-node/data` stays).
 
 The image is built by the GitHub Action "Build image" (Actions tab -> Run workflow, or push a tag such as `v0.2.0`) and published
 to `ghcr.io/hubit-git/hubit-node`; make the package public once (Packages -> hubit-node -> Package settings) so a server can pull
