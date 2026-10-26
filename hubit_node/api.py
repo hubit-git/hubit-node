@@ -1,15 +1,12 @@
 """The HTTPS JSON API Hubit talks to (it mirrors the panel driver). One API key in the header X-API-Key; the certificate
-is self-signed and Hubit pins its public key (`hubit-node api` prints the pin). It runs as its own process under the supervisor.
+is self-signed and Hubit checks its fingerprint (`hubit-node api` prints it). It runs as its own process under the supervisor.
 It only reads usage; counting and limits belong to the loop in the supervisor."""
-import base64
-import hashlib
 import hmac
 import json
 import os
 import re
 import signal
 import ssl
-import subprocess
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -36,13 +33,11 @@ def ensure_cert():
     os.chmod(f"{TLS_DIR}/tls.key", 0o600)
 
 
-def pin():
-    """What Hubit stores to know this node (curl's "pinned public key"): sha256 of the certificate's public key. It is
-    checked before anything, the API key included, is sent, and survives a new certificate made from the same key."""
-    key = run("openssl", "x509", "-in", f"{TLS_DIR}/tls.crt", "-pubkey", "-noout")
-    der = subprocess.run(["openssl", "pkey", "-pubin", "-outform", "der"], input=key.encode(), capture_output=True,
-                         check=True).stdout
-    return "sha256//" + base64.b64encode(hashlib.sha256(der).digest()).decode()
+def fingerprint():
+    """What Hubit stores to know this node: the sha256 of its certificate, as lowercase hex. The panel checks it in the TLS
+    handshake, before the API key is sent, so a self-signed certificate is safe to use."""
+    text = run("openssl", "x509", "-in", f"{TLS_DIR}/tls.crt", "-noout", "-fingerprint", "-sha256")
+    return text.split("=", 1)[1].replace(":", "").lower()
 
 
 def connections(cfg):
@@ -92,7 +87,7 @@ def groups(cfg, m, body, query):
 
 def user_list(cfg, m, body, query):
     offset = int(query.get("offset", ["0"])[0])
-    limit = min(int(query.get("limit", ["100"])[0]), 1000)
+    limit = min(int(query.get("limit", ["100"])[0]), 5000)
     live = {c["user"] for c in connections(cfg)}
     rows = users.all_users()[offset:offset + limit]
     return 200, [{**users.as_dict(r), "online": r["username"] in live} for r in rows]

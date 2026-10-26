@@ -167,7 +167,7 @@ def cmd_api(args, cfg):
         reload_node()
     print(f"port:        {cfg['api']['port']}")
     print(f"key:         {cfg['api']['key']}")
-    print(f"pin:         {api.pin()}")
+    print(f"fingerprint: {api.fingerprint()}")
     if args.new_key:
         print("the key changed: give the new one to Hubit")
 
@@ -298,7 +298,7 @@ def build_parser():
     p = sub.add_parser("pki", help="the OpenVPN certificate bundle")
     p.add_argument("action", choices=["create", "import", "export", "show"])
     p.set_defaults(fn=cmd_pki)
-    p = sub.add_parser("api", help="show or change the API (port, key, certificate pin)")
+    p = sub.add_parser("api", help="show or change the API (port, key, certificate fingerprint)")
     p.add_argument("--port", type=port_arg)
     p.add_argument("--new-key", action="store_true", help="make a new API key")
     p.set_defaults(fn=cmd_api)
