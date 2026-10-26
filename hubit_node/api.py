@@ -95,8 +95,8 @@ def user_list(cfg, m, body, query):
 
 def user_create(cfg, m, body, query):
     password = body.get("password")
-    if not isinstance(password, str) or len(password) < 3:
-        raise ValueError("password: at least 3 characters")
+    if not isinstance(password, str) or len(password) < 8:
+        raise ValueError("password: at least 8 characters")
     try:
         users.add(body.get("username", ""), password, body.get("group", "ssh"), cfg,
                   **{"expire_at": None, "data_limit": 0, "devices": 1,
@@ -118,8 +118,8 @@ def user_update(cfg, m, body, query):
     need_user(m["user"])
     fields = fields_from(body, cfg)
     if "password" in body:
-        if not isinstance(body["password"], str) or len(body["password"]) < 3:
-            raise ValueError("password: at least 3 characters")
+        if not isinstance(body["password"], str) or len(body["password"]) < 8:
+            raise ValueError("password: at least 8 characters")
         users.set_password(m["user"], body["password"], cfg)
     if fields:
         users.update(m["user"], cfg, **fields)
