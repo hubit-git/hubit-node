@@ -1,5 +1,7 @@
 # hubit-node
 
+[English](README.md) | [فارسی](README.fa.md)
+
 A small VPN node for [Hubit Panel](https://github.com/hubit-git/panel): SSH (tunnel only) and OpenVPN users on your own server,
 managed from the Hubit admin panel through a JSON API, or by hand from the command line. It runs in Docker and installs with one
 command.
