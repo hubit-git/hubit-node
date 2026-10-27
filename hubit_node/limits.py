@@ -1,16 +1,28 @@
 """The 10 second loop: counts usage, notes who is online, drops the extra devices, and locks users whose time or
 data is over (or opens them again when the limits were raised). It runs on the node, so it works when Hubit is away."""
 from . import modules, users
+from .system import is_local
+
+
+def device_of(module, conn):
+    """(key, newest wins) of a connection. A device = a client IP. Behind a reverse tunnel every client is 127.0.0.1, so
+    there each connection is a device. Normally the oldest devices are kept; the newest wins for an SSH connection from
+    a local address (SSH notices a dead client only after a minute or two, which must not lock the customer out)."""
+    if not is_local(conn["ip"]):
+        return conn["ip"], False
+    return f"{conn['ip']}:{conn.get('addr') or conn.get('pid')}", module.NAME == "ssh"
 
 
 def drop_extra_devices(row, connections):
-    """A device = a client IP. The oldest `devices` IPs keep their connections, the newer ones are closed."""
-    ips = {}
+    """The `devices` best-ranked devices keep their connections, the others are closed."""
+    ranks = {}
     for module, conn in connections:
-        ips[conn["ip"]] = max(ips.get(conn["ip"], 0), conn["seconds"])
-    keep = set(sorted(ips, key=ips.get, reverse=True)[: row["devices"]])
+        key, newest = device_of(module, conn)
+        rank = -conn["seconds"] if newest else conn["seconds"]
+        ranks[key] = max(ranks.get(key, rank), rank)
+    keep = set(sorted(ranks, key=ranks.get, reverse=True)[: row["devices"]])
     for module, conn in connections:
-        if conn["ip"] not in keep:
+        if device_of(module, conn)[0] not in keep:
             module.drop(conn)
 
 

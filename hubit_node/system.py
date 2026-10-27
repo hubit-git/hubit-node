@@ -27,3 +27,11 @@ def public_ip():
         except Exception:
             continue
     return route_ip()
+
+
+def is_local(ip):
+    """A loopback address: behind a reverse tunnel every client of the node comes from 127.0.0.1."""
+    try:
+        return ipaddress.ip_address(ip).is_loopback
+    except ValueError:
+        return False

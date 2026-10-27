@@ -24,15 +24,17 @@ account  required pam_unix.so
 
 # Run by openvpn as `nobody`, so they cannot reach the management socket: they keep their own notes. A session is a file
 # sessions/USER/IP:PORT; the node writes limits/USER (the devices allowed) and removes notes of connections that are gone.
-# A device = a client IP, so a client that reconnects from the same address is never refused.
+# A device = a client IP, so a client that reconnects from the same address is never refused. Behind a reverse tunnel every
+# client is 127.x, so there each connection (IP:PORT) is a device.
 CONNECT = """#!/bin/sh
 limit=$(cat "@RUN@/limits/$common_name" 2>/dev/null)
 case "$limit" in ''|*[!0-9]*) limit=0 ;; esac
 dir="@RUN@/sessions/$common_name"
 mkdir -p "$dir"
 if [ "$limit" -gt 0 ]; then
-    ips=$(ls "$dir" | sed 's/:[^:]*$//' | sort -u)
-    if ! echo "$ips" | grep -qxF "$untrusted_ip" && [ "$(echo "$ips" | grep -c .)" -ge "$limit" ]; then
+    case "$untrusted_ip" in 127.*) me="$untrusted_ip:$untrusted_port" ;; *) me="$untrusted_ip" ;; esac
+    ips=$(ls "$dir" | sed '/^127[.]/!s/:[^:]*$//' | sort -u)
+    if ! echo "$ips" | grep -qxF "$me" && [ "$(echo "$ips" | grep -c .)" -ge "$limit" ]; then
         exit 1
     fi
 fi
