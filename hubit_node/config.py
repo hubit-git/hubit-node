@@ -2,14 +2,14 @@
 import json
 import os
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 DATA = os.environ.get("HUBIT_DATA", "/data")
 PATH = f"{DATA}/config.json"
 
 DEFAULTS = {
     "host": "",
     "api": {"port": 8443, "key": ""},
-    "ssh": {"port": 2222},
+    "ssh": {"port": 2222, "udpgw": 7300},  # udpgw: UDP for video calls over the tunnel, on 127.0.0.1 only; 0 = off
     "openvpn": {"udp": 1194, "tcp": 1194, "dns": ["1.1.1.1", "8.8.8.8"]},  # a port of 0 = that server is off
     # protocols switched on; a group is a set of protocols a subscription may use
     "protocols": ["ssh", "openvpn"],

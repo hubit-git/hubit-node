@@ -29,6 +29,7 @@ hubit-node online                       # who is connected now
 hubit-node host vpn.example.com              # the address customers get (auto = this server's)
 hubit-node host --ssh ssh.example.net        # SSH on its own address; OpenVPN keeps the host (--openvpn likewise, default = back)
 hubit-node ssh-port 2222
+hubit-node ssh-udpgw 7300      # UDP for video calls over SSH (on 127.0.0.1, 0 = off); not counted in usage; the app asks for 127.0.0.1:7300
 hubit-node user add s1 --password secret
 hubit-node user add s2 --group openvpn --days 30 --data 50 --devices 2   # groups: ssh, openvpn, ssh+openvpn
 hubit-node user list | show | set | passwd | reset-usage | disable | enable | kick | del

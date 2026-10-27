@@ -199,6 +199,15 @@ def cmd_host(args, cfg):
         print(f"{protocol + ':':<8} {config.host_of(cfg, protocol) or '(not set)'}" + ("" if cfg[protocol].get("host") else "  (the host above)"))
 
 
+def cmd_ssh_udpgw(args, cfg):
+    if args.port != 0 and args.port in (cfg["api"]["port"], cfg["ssh"]["port"]):
+        sys.exit("that port is used by the API or SSH")
+    cfg["ssh"]["udpgw"] = args.port
+    config.save(cfg)
+    reload_node()
+    print("udpgw = " + (f"127.0.0.1:{args.port} (customers enter it in their app; it is not counted in their usage)" if args.port else "off"))
+
+
 def cmd_ssh_port(args, cfg):
     if args.port == cfg["api"]["port"]:
         sys.exit("that port is used by the API")
@@ -323,6 +332,9 @@ def build_parser():
     p = sub.add_parser("ssh-port", help="port of the customers' SSH")
     p.add_argument("port", type=port_arg)
     p.set_defaults(fn=cmd_ssh_port)
+    p = sub.add_parser("ssh-udpgw", help="UDP for video calls over SSH (a port on 127.0.0.1, 0 = off); not counted in usage")
+    p.add_argument("port", type=int)
+    p.set_defaults(fn=cmd_ssh_udpgw)
 
     user = sub.add_parser("user", help="manage users").add_subparsers(dest="sub", required=True)
     p = user.add_parser("add")

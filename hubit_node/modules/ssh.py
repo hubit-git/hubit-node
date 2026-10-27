@@ -53,7 +53,10 @@ def ports(cfg):
 
 def connection(cfg):
     """What a customer needs to connect (the password is the one Hubit knows)."""
-    return {"protocol": "ssh", "host": host_of(cfg, "ssh"), "port": cfg["ssh"]["port"]}
+    found = {"protocol": "ssh", "host": host_of(cfg, "ssh"), "port": cfg["ssh"]["port"]}
+    if cfg["ssh"]["udpgw"]:
+        found["udpgw"] = cfg["ssh"]["udpgw"]  # the customer's app asks for it as 127.0.0.1:PORT
+    return found
 
 
 def render(cfg):
@@ -198,4 +201,8 @@ def stop(cfg):
 
 
 def commands(cfg):
-    return {"ssh": ["/usr/sbin/sshd", "-D", "-e", "-f", CONF]}
+    found = {"ssh": ["/usr/sbin/sshd", "-D", "-e", "-f", CONF]}
+    # Not counted in the customers' usage on purpose: it only carries UDP (video calls) for apps like NetMod
+    if cfg["ssh"]["udpgw"]:
+        found["udpgw"] = ["/usr/local/bin/badvpn-udpgw", "--listen-addr", f"127.0.0.1:{cfg['ssh']['udpgw']}", "--loglevel", "warning"]
+    return found
