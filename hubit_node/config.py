@@ -2,7 +2,7 @@
 import json
 import os
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 DATA = os.environ.get("HUBIT_DATA", "/data")
 PATH = f"{DATA}/config.json"
 
