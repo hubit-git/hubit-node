@@ -41,7 +41,16 @@ On Ubuntu or Debian, as root:
 bash <(curl -fsSL https://raw.githubusercontent.com/hubit-git/hubit-node/main/install.sh)
 ```
 
-This installs Docker if it is missing, turns IP forwarding on (OpenVPN clients are routed through the server), puts the project in
+The first time, it **asks** what to run (Enter takes the value in brackets): the address customers connect to, the protocols
+(`ssh`, `openvpn` or both), the SSH port, the OpenVPN UDP and TCP ports (or `off`), udpgw (yes/no) and the API port. It checks every port: if
+a port is already used by a program on the server, it says which one and suggests a free port. At the end it shows a summary, asks
+to continue and prints the firewall commands for the ports you chose. An update (a config already exists) asks nothing.
+
+To install without questions (scripts, many servers), set variables and `HUBIT_YES=1`: `HUBIT_HOST`, `HUBIT_PROTOCOLS`
+(`ssh,openvpn`), `HUBIT_SSH_PORT`, `HUBIT_UDP_PORT`, `HUBIT_TCP_PORT` (a number or `off`), `HUBIT_API_PORT`, `HUBIT_UDPGW` (`yes` or
+`no`). It also runs without questions when there is no terminal. A port that is already in use stops the install with a message.
+
+It installs Docker if it is missing, turns IP forwarding on (OpenVPN clients are routed through the server), puts the project in
 `/opt/hubit-node`, starts the container `hubit-node`, adds the `hubit-node` command and prints the API port, key and certificate
 fingerprint that Hubit needs.
 
@@ -54,12 +63,12 @@ The image is built by the GitHub Action "Build image" on every push to `main` an
 
 ## First setup, step by step
 
-Run these on the node, in this order:
+The installer already asked for the address and the ports. Then, on the node:
 
 ```bash
-hubit-node host vpn.example.com     # 1. the address customers get (a domain or this server's IP)
-hubit-node doctor                   # 2. check the server
-hubit-node api                      # 3. port, key and fingerprint: you need them in Hubit
+hubit-node doctor                   # 1. check the server
+hubit-node api                      # 2. port, key and fingerprint: you need them in Hubit
+hubit-node host vpn.example.com     # (only to change the address later)
 ```
 
 The OpenVPN certificate is not made on the node: you upload one bundle in Hubit Panel (Panels -> "OpenVPN certificate") and Hubit
