@@ -40,7 +40,7 @@ LogLevel INFO
 PAM_FILE = "/etc/pam.d/sshd"
 CHECK = "/usr/local/bin/hubit-devcheck"
 # after the password was right (Debian's common-auth jumps over pam_deny only on success)
-PAM_LINE = f"auth requisite pam_exec.so quiet {CHECK}"
+PAM_LINE = f"auth requisite pam_exec.so quiet stdout {CHECK}"
 
 TABLE = "hubit"
 # {uid: username} the nftables rules were made for

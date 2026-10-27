@@ -70,7 +70,7 @@ client-connect {run}/connect.sh
 client-disconnect {run}/disconnect.sh
 push "redirect-gateway def1 bypass-dhcp"
 {dns}
-keepalive 10 30
+keepalive 5 15
 user nobody
 group nogroup
 persist-key

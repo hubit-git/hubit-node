@@ -181,10 +181,13 @@ Without `--password`, `add` makes a random one and prints it. A password is 8 to
   nobody is locked out by a bug), the loop closes the newest IPs within 10 seconds.
 - **Behind a reverse tunnel** (a server in front that forwards clients to the node, a "backhaul") every client reaches the node as
   `127.0.0.1`, so the IP says nothing. For a loopback address each **connection** is a device instead: with `devices 1` OpenVPN
-  refuses a second connection while the first is alive (the first is forgotten within about 30 seconds after it ends), and SSH lets the
+  refuses a second connection while the first is alive (a connection that ends cleanly is forgotten at once; one that vanishes, such as a phone switching networks, within about 15 seconds), and SSH lets the
   **newest** win: the login is accepted and the older connection is closed within 10 seconds, so a customer who reconnects is never
   locked out by a dead connection. An app that opens several SSH connections for one login counts as several devices there.
   Clients with a real address are counted by IP as above.
+- **A message in the app.** After a good SSH login the node sends one line to the client: `Used 3.20 GB of 10.00 GB | 24 days left`
+  (or `(no data limit)`, `ended`). Apps such as NetMod can show it in their log; it is the usage at the moment of the login,
+  not live, so the customer reconnects to see a newer number. OpenVPN shows nothing like it.
 - **Locked users** stay on the node with their usage, so they can be enabled again (Hubit renews or enables them through the API).
 
 ## Addresses and ports
