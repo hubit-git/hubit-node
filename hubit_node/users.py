@@ -41,6 +41,14 @@ def exists(username):
     return run("id", "-u", username, check=False).returncode == 0
 
 
+def is_ours(username):
+    """A Linux user of ours: its main group is ours (one left without a row, when the data was lost, is ours too)."""
+    try:
+        return pwd.getpwnam(username).pw_gid == int(run("getent", "group", MAIN_GROUP).split(":")[2])
+    except (KeyError, IndexError, RuntimeError):
+        return False
+
+
 def apply(row, cfg):
     """Makes the Linux user match the row: groups of its protocols, password, locked when not active."""
     name = row["username"]
@@ -91,7 +99,7 @@ def add(username, password, grp, cfg, expire_at=None, data_limit=0, devices=1):
         raise ValueError(f"unknown group: {grp}")
     if get(username):
         raise ValueError("username already exists")
-    if exists(username):
+    if exists(username) and not is_ours(username):
         raise ValueError("username belongs to a system user")
     with db.connect() as conn:
         conn.execute(
