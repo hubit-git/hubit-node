@@ -250,6 +250,7 @@ ufw allow 8443/tcp     # API: هابیت اینجا وصل می‌شود (می�
 | هابیت می‌گوید گواهی نمی‌خواند | نود بدون داده‌هایش دوباره نصب شده: `hubit-node api` را بزن و اثر انگشت جدید را به هابیت بده |
 | OpenVPN گوش نمی‌دهد | هنوز گواهی نیست: بسته را در هابیت آپلود کن (یا برای تست `hubit-node pki create`) |
 | OpenVPN وصل می‌شود ولی اینترنت نیست | forwarding خاموش است یا سیاست FORWARD داکر جلویش را می‌گیرد: `hubit-node doctor` می‌گوید کدام، `docker restart hubit-node` قوانین را دوباره می‌گذارد |
+| `hubit-node` خطای `Resource temporarily unavailable` می‌دهد (و در `journalctl -k` عبارت `fork rejected by pids controller` هست) | کانتینر به سقف تعداد پروسس رسیده. `docker-compose.yml` حالا `pids_limit: -1` (بدون سقف) دارد: آپدیت کن (دستور نصب) تا کانتینر دوباره با آن ساخته شود. اگر باز هم شد، ببین چه چیزی زیاد می‌شود: `ps -eo comm --no-headers \| sort \| uniq -c \| sort -rn \| head` |
 | `doctor` می‌گوید حلقه‌ی محدودیت‌ها اجرا نشده | `docker logs hubit-node 2>&1 \| grep -i loop` |
 | مصرف بالا نمی‌رود | حلقه کار نمی‌کند (بالا را ببین)، یا کاربر ترافیکی نساخته |
 

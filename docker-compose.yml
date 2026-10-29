@@ -6,6 +6,7 @@ services:
     container_name: hubit-node
     network_mode: host
     restart: unless-stopped
+    pids_limit: -1  # no cap on processes: systemd gives a container a default cap (about 4500 on a small server) that busy nodes reach
     cap_add:
       - NET_ADMIN
       - SYS_PTRACE  # lets `ss -p` see which process owns a connection (the online list)

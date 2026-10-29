@@ -258,6 +258,7 @@ open the same ports there too. The container uses the host's network, so no `-p`
 | Hubit says the certificate does not match | the node was installed again without its data: `hubit-node api` and give Hubit the new fingerprint |
 | OpenVPN does not listen | no certificate yet: upload the bundle in Hubit (or `hubit-node pki create` for a test) |
 | OpenVPN connects but there is no internet | forwarding is off or Docker's FORWARD policy blocks it: `hubit-node doctor` says which, `docker restart hubit-node` re-applies the rules |
+| `hubit-node` says `Resource temporarily unavailable` (and `journalctl -k` has `fork rejected by pids controller`) | the container reached its cap of processes. `docker-compose.yml` has `pids_limit: -1` (no cap) since 0.3.2+: update (the install command) so the container is created again with it. If it still happens, find what multiplies: `ps -eo comm --no-headers \| sort \| uniq -c \| sort -rn \| head` |
 | `doctor` says the limits loop has not run | `docker logs hubit-node 2>&1 \| grep -i loop` |
 | Usage never grows | the loop is not running (see above), or the user has not made traffic |
 
